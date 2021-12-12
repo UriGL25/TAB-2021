@@ -1,0 +1,5 @@
+yellow
+white
+orange
+blue
+red
