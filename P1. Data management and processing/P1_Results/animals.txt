@@ -1,5 +1,0 @@
-Cat
-Dog
-Turtle
-Monkey
-
