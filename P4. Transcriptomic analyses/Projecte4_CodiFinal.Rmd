@@ -1,0 +1,436 @@
+---
+title: "Projecte4_Codi"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", fig.width = 6, fig.height = 4)
+knitr::opts_knit$set(root.dir = "C:/Users/01par/Downloads/Project4/data")
+# Canviem el directori amb el que treballarem, aquí tenim els arxius. Caldrà entrar a la carpeta de stomachCancer
+library(SummarizedExperiment)
+library(edgeR)
+library(DESeq2)
+library(tweeDEseq)
+library(tweeDEseqCountData)
+library(GOstats)
+library(annotate)
+library(org.Hs.eg.db)
+library(biomaRt)
+library(ggplot2)
+library(ggrepel)
+```
+
+Part 1: obtenció de dades
+
+```{r Stomach Cancer, open data}
+getwd() #Comprovem que el canvi de directori hagi anat bé
+load(file = "stomachCancer/rse_gene_stomach.Rdata") # Carreguem l'arxiu. Si va bé, tindrem rse_gene a l'environment
+
+```
+
+
+```{r Stomach Cancer}
+dim(rse_gene) # Veiem quants gens tenim al dataset (58037, els mateixos que al pleural), i quants pacients (453) 
+
+```
+
+```{r Stomach Cancer create-group}
+stage <- rse_gene$gdc_cases.diagnoses.tumor_stage #Creem la variable stage, per no haver d'escriure "rse_gene$gdc_cases.diagnoses.tumor_stage" constantment
+
+#Aquí separem els pacients en 2 grups: "early" i "late", depenent de la fase on es trobin. Primer classifiquem les fases, i a partir d'allà, el pacient que tenen associat.
+
+# Els early són aquells que van de la fase I a la fase II, incloent subfases
+ids.early <-grep(paste("stage i$", "stage ia$","stage ib$","stage ic$", "stage ii$", "stage iia$","stage iib$", "stage iic$",sep="|"), stage) 
+
+# Els late són aquells que van de la fase III a la fase IV, incloent subfases
+ids.late <-grep(paste("stage iii$", "stage iiia$", "stage iiib$","stage iiic$", "stage iv$", "stage iva$","stage ivb$", "stage ivc$",sep="|"), stage)
+
+# creem la columna GROUP, buida de moment
+colData(rse_gene)$GROUP <-rep(NA, ncol(rse_gene))
+# S'afegeixen els pacients amb fases tempranes
+colData(rse_gene)$GROUP[ids.early] <- "early"
+# S'afegeixen els pacients amb fases tardanes
+colData(rse_gene)$GROUP[ids.late] <- "late"
+```
+
+```{r Stomach Cancer check group}
+naData <- is.na(rse_gene$GROUP) #Comprovem quants no tenen l'etapa registrada: ens dona que 26 pacients no la tenen.
+table(naData)
+```
+
+```{r Stomach Cancer check group}
+# Excloem la informació dels 26 pacients dels quals no hi ha informació de la fase
+rse_gene <- rse_gene[, !naData]
+```
+
+```{r Stomach Cancer expected data}
+#Comprovem quina informació ens sortirà al gràfic, tant comparant "early" i "late" com fase per fase
+table(rse_gene$GROUP)
+table(rse_gene$gdc_cases.diagnoses.tumor_stage)
+
+# Veiem que la quantitat de pacients en fases tardanes és lleugerament superior als en etapes tempranes
+```
+
+
+```{r data-frame-fig}
+# Per a crear el gràfic, cal separar tant en fase (Stage, cada una de les columnes) i grup (early o late, la classificació que hem fet abans, que alterarà el color)
+
+# dataGroups és la informació que farem servir pel gràfic
+dataGroups <- data.frame(Stage = rse_gene$gdc_cases.diagnoses.tumor_stage, Group = rse_gene$GROUP)
+
+# El gràfic com a tal, emprant el dataframe que hem creat abans, i indicant que hem de separar depenent de la fase (I-IV) però canviant el color depenent del grup. Això resulta en les columnes corresponents a fase I-II i subfases pintades d'un color, i les corresponents a fase III-IV i subfases d'un altre
+ggplot(data = dataGroups, mapping = aes(x= Stage, fill = Group))+
+  geom_bar()+
+  theme_light()+ 
+  labs(title="Stomach cancer patients by tumoral stage", y="Number of patients", fill="Tumoral stage")+
+  scale_fill_manual(values= c("darkorange1", "royalblue3"))+
+  theme(axis.text.x = element_text(angle = 90),axis.title.y = element_text(size = 10))
+# Podem guardar el gràfic com a imatge, per a fer-la servir a l'article
+ggsave(plot = last_plot(), file ="Plot_name_example.png", widht=6, height = 4) 
+```
+
+```{r data-frame-fig}
+# Creem la variable "counts", per poder-la cridar més fàcilment. També en visualitzem una part, per comprovar que funciona.
+counts <- assay(rse_gene, "counts")
+counts[1:3, 1:4]
+```
+
+```{r save-pheno}
+# Creem la variable "phenotype", per poder-la cridar més fàcilment. També en visualitzem una part, per comprovar que funciona. 
+phenotype <- colData(rse_gene)
+phenotype[1:3, 1:5]
+```
+```{r check igual fen.}
+# Comprovem si els individus que hem guardat a "counts" i a "phenotype" són els mateixos en ambdos casos. És el cas, i per tant no s'ha de fer cap ajust
+identical(colnames(counts), rownames(phenotype))
+```
+
+```{r annotation}
+# Creem la variable "annotations", per poder-la cridar més fàcilment. També en visualitzem una part, per comprovar que funciona. 
+# save the annotation data
+annotation <- rowData(rse_gene)
+annotation[1:3, 1:3]
+```
+
+**Can you explore which information is available for each gene?**
+
+```{r exploreData}
+
+#Utilitzem View per a explorar quina part de rse_gene ens pot aportar informació sobre cada gen
+View(rse_gene)
+
+#Trobem que rowRanges ens pot ser útil, i per tant l'examinem
+infoGenes <- rowRanges(rse_gene, "listData")
+infoGenes[1:3, 1:3]
+```
+
+Podem veure l'ID dels gens, a quin cromosoma es troben, el seu símbol, la seva longitud en parells de bases, en quina cadena es troben, i el seu rang.
+
+**Write a short summary of the information you have available (e.g., total number of individuals, filtered individuals, individuals by stage, number of genes, ...)**
+
+```{r information}
+#  Comprovem el nombre d'individus i de gens
+dim(rse_gene)
+
+# Mirem com estan dividits els individus per fases
+indiv <- table(stage)
+
+indiv
+```
+
+Tenim 453 pacients, 26 dels quals hem filtrar degut a que no tenen fase registrada. Dels 427 restants, es divideixen de la següent manera:
+
+stage i     stage ia     stage ib     stage ii 
+2           19           43           30
+
+stage iia    stage iib    stage iii   stage iiia   stage iiib 
+46           66            3           77           59 
+  
+stage iiic     stage iv 
+37           45 
+
+
+També trobem 58037 gens, amb la informació descrita a la pregunta anterior.
+
+
+Part 2: Normalitzar dades:
+
+```{r maPlot-row}
+
+#Aquesa funció serveix per a fer gràfics MA (comparant M-values i A-values), que ens indica si hi ha o no la necessitat de normalitzar dues mostres. Esperem que la distribució sigui simètrica, amb la concentració més elevada a y = 0.
+
+maPlot(counts[,1],
+       counts[,2],
+       pch=19,
+       cex=.5,
+       ylim=c(-8,8),
+       allCol="darkgray",
+       lowess=TRUE,
+       xlab=expression(A == log[2] (sqrt(S1/N %.% S2/N))),
+       ylab=expression(M == log[2](S1/N)-log[2](S2/N)))
+grid(col="black")
+title("Raw data")
+```
+
+```{r rpkm}
+#Amb aquest codi podem aplicar la normalització per RPKM. Cal recordar que no es pot fer servir per comparar diferents mostres, només entre gens diferents de la mateixa mostra. És bàsicament aplicar la fórmula matemàtica:
+
+counts <- assay(rse_gene, "counts") #Cal crear "counts", encara que ho haguem fet abans, si hem tornat a obrir l'arxiu no s'haurà guardat, i així no cal tornar a pujar a buscar-lo
+
+geneLength <- annotation$bp_length
+counts.rpkm <- t(t(counts/geneLength*1000)/colSums(counts)*1e6)
+counts.rpkm[1:5,1:2]
+```
+
+```{r rpkm-visualization}
+
+#Tornem a generar el gràfic, en aquest cas amb les dades ajustades amb RPKM
+
+maPlot(counts.rpkm[,1],
+       counts.rpkm[,2],
+       pch=19,
+       cex=.5,
+       ylim=c(-8,8),
+       allCol="darkgray",
+       lowess=TRUE,
+       xlab=expression( A==log[2] (sqrt(S1/N%.%S2/N))),
+       ylab=expression(M==log[2](S1/N)-log[2](S2/N)))
+grid(col="black")
+title("RPKM")
+```
+
+```{r tmm}
+
+#Normalitzem amb el mètode TMM, que si que es pot emprar al comparar diferents mostres
+
+counts.tmm <- normalizeCounts(counts, method = "TMM")
+counts.tmm[1:5,1:2]
+```
+
+
+
+
+
+```{r tmm-visualization}
+
+#Tornem a generar el gràfic, en aquest cas amb les dades ajustades amb TMM
+
+maPlot(counts.tmm[,1],
+       counts.tmm[,2],
+       pch=19, cex=.5,
+       ylim=c(-8,8),
+       allCol="darkgray",
+       lowess=TRUE,
+       xlab=expression( A==log[2] (sqrt(S1/N%.%S2/N))),
+       ylab=expression(M==log[2](S1/N)-log[2](S2/N)))
+grid(col="black")
+title("TMM")
+```
+
+**Discuss with a colleague the following: **
+
+- **Do you observe any improvement when comparing the Raw data against the RPKM normalization?**
+While there is a slight change in the graphic, it doesn't seem a clear improvement.
+- **And when comparing the Raw data and the TMM method?**
+In this case, there is a notable change for the better.
+- **Which is the best normalization method in this case?**
+In this case, the TMM method is the one that works better, because it is suited for comparing between different samples, which is our case. All the different patients may have slight mistakes or changes in the methodology, which RPKM normalization doesn't really take into account, because it is designed to normalize within the same sample, taking into account only the different length of genes. 
+
+Part 3: Anàlisis d'expressió diferencial
+
+
+```{r diffgen}
+
+# Aquest anàlisis ens permet identificar gens sobre-expressats o infra-expressats en càncers, en aquest cas depenent de la fase on es trobin els pacients. Per tant, tornarem a necessitar aquesta informació.
+
+counts <- assay(rse_gene, "counts")
+phenotype <- colData(rse_gene) #Similar al cas de "counts", tornem a crear la variable "phenotype" per si hem tornat a iniciar el programa, i també tornem a crear la columna GROUPS. Important recordar que "counts" també cal.
+
+# També tornem a crear la columna GROUPS
+stage <- rse_gene$gdc_cases.diagnoses.tumor_stage
+
+ids.early <-grep(paste("stage i$", "stage ia$","stage ib$","stage ic$", "stage ii$", "stage iia$","stage iib$", "stage iic$",sep="|"), stage)
+
+ids.late <-grep(paste("stage iii$", "stage iiia$", "stage iiib$","stage iiic$", "stage iv$", "stage iva$","stage ivb$", "stage ivc$",sep="|"), stage)
+
+colData(rse_gene)$GROUP <-rep(NA, ncol(rse_gene))
+colData(rse_gene)$GROUP[ids.early] <- "early"
+colData(rse_gene)$GROUP[ids.late] <- "late"
+
+# Creem pheno.stage, per separar els pacients en early i late
+pheno.stage <- subset(phenotype, select=GROUP)
+
+counts.adj <- matrix((as.vector(as.integer(counts))), nrow=nrow(counts), ncol=ncol(counts))
+
+rownames(counts.adj) = rownames(counts)
+colnames(counts.adj) = colnames(counts)
+
+identical(colnames(counts.adj), rownames(pheno.stage)) #Comprovem que els gens coincideixin a counts i a la divisió per fases
+
+pheno.stage$GROUP <- as.factor(pheno.stage$GROUP)
+
+DEs <- DESeqDataSetFromMatrix(countData = counts.adj,
+                              colData = pheno.stage,
+                              design = ~ GROUP)
+
+dds <- DESeq(DEs)
+
+res <- results(dds, pAdjustMethod = "fdr")
+
+head(res)
+```
+
+```{r visualization}
+#Visualitzem els resultats de l'anàlisis anterior. Els gens que no estiguin distribuïts de manera simètrica estan sobre o infra expressats.
+plotMA(res, ylim=c(-20,20), main='Differentially expressed genes in early vs late stomach cancer')
+```
+
+```{r result1}
+# En aquests segments, s'identifiquen els gens amb expressió alterada més significatius (mesurant el p-valor). Veiem que hi ha 355 gens que compleixen aquesta condició.
+res.padj <- res[(res$padj < 0.001 & !is.na(res$padj)),]
+nrow(res.padj)
+```
+
+```{r top}
+# L'altre criteri que fem servir és la magnitud del canvi, mesurada amb un logaritme. Ens quedem amb els gens que tinguin un canvi gran, superior a 10. Ens quedem amb 17 gens.
+res.padj_4fold <- res.padj[abs(res.padj$log2FoldChange) > log2(10),] 
+nrow(res.padj_4fold)
+```
+
+```{r visualize-top}
+#Visualitzem els gens diferencialment expressats: 
+plotMA(res.padj_4fold, ylim=c(-10,10), main='Most differentially expressed genes')
+```
+
+**Write a short summary of the result of the DE analysis. How many genes are overexpressed? And underexpressed? Fill the table**
+
+After performing the DE analysis, we see that 17 genes are DE, and we can see that all of them are underexpressed.
+
+| Underexpressed | Not differentially expressed | Overexpressed |
+|----------------|------------------------------|---------------|
+|       17       |           58020              |       0       |
+
+```{r nom gens}
+# Identifiquem els 17 gens diferencialment expressats: 
+genscomu <- intersect(rownames(res.padj_4fold), rownames(counts))
+genscomu
+
+```
+
+
+```{r df}
+# Un Volcano plot mesura com de significatius són els canvis, i de quina magnitud són aquests canvis. En primer lloc, farem servir les dades que hem obtingut a l'apartat anterior (Diferetnially Expressed Genes), i comprovarem un cop més que estiguin diferencialment expressats, tant per significància com per magnitud del canvi.
+
+
+resDF <- as.data.frame(res)
+resDF$gene <- rownames(resDF)
+resDF$filter <- abs(res$log2FoldChange) > log2(10) & res$padj < 0.001 
+table(resDF$filter)
+```
+
+```{r ggplot1}
+# Per tal d'obtenir un gràfic en volcà, hem de fer servir la una funció geom point: hi ha 2 variables que hem de tenir en compte: com de gran és el canvi (eix x, Fold Change) i com de significatiu és el canvi (eix y, Singificància).
+# També hem de tenir en compte que la significància s'expressa com a logaritme negatiu amb base 10
+volcano <- ggplot(data = na.omit(resDF), mapping = aes(x= res$log2FoldChange, y= - log10(res$padj), color = resDF$filter))+
+  geom_point(size=1)+
+  theme_light()+
+  geom_label_repel(data=resDF[abs(resDF$log2FoldChange) > log2(10) & resDF$padj < 0.001 ,], aes(label = as.factor(gene)), alpha = 0.7, size = 2, force = 1.3)+
+  scale_color_manual(values=c("royalblue2","gray24"))+
+  theme(legend.position="none",axis.title.y = element_text(size = 10), axis.title.x = element_text(size = 10))+
+  labs(title="Volcano plot", x="Effect size:log2(fold-change)",y="-log10(adjusted p-value)")
+  
+
+ggsave(filename = "volcano.png", plot= volcano, width = 6, height = 4)
+```
+Part 5: Anàlisis post RNA-seg: anàlisis d'enriquiment
+
+```{r saveGenes}
+# Fem una llista dels gens DE que volem estudiar amb més profunditat, i canviem una mica l'ID, per a major claredat
+deGenes <- gsub("\\..*", "",rownames(res.padj_4fold))
+deGenes
+```
+
+```{r biomart}
+#  Per a poder analitzar els gens, hem de triar una base de dades, ensembl en aquest cas, i un dataset de referència, en aquest cas "hsapiens_gene_ensembl"
+biomart_uses <- useMart(biomart="ensembl", dataset="hsapiens_gene_ensembl")
+biomart_uses
+```
+
+```{r query}
+# Introduïm els gens que ens interessen (deGenes), i especifiquem com els identifiquem (en aquest cas, via ID d'ensembl) i què obtenim (en aquest cas, l'id d'entrez)
+Entrez_BM <- getBM(attributes=c("ensembl_gene_id", "entrezgene_id"),
+                   filter="ensembl_gene_id",
+                   values=deGenes,
+                   mart=biomart_uses,
+                   uniqueRows=TRUE)
+
+dim(Entrez_BM)
+head(Entrez_BM)
+```
+**How many genes are there in the new dataset? Why?**
+
+There are 17 genes in this dataset, all of the differentially expressed ones.
+
+```{r Entrez}
+# La llista completa dels gens que hem buscat
+Entrez_BM
+```
+
+
+We can see that 2 of the genes have "NA" as their entrez ID. That's because they are pseudogenes or recently discovered genes, without a RefSeq match. We can keep only the genes with all the information.
+
+```{r clean}
+Entrez_ids <- as.character(na.omit(Entrez_BM$entrezgene_id))
+```
+
+**How many genes are we keeping? Use the `length()` function to find it out.**
+```{r clean}
+# Si no volem que a la llista hi hagi els gens amb NA com a entrez ID:
+Entrez_ids <- as.character(na.omit(Entrez_BM$entrezgene_id))
+length(Entrez_ids)
+```
+
+We are keeping 15 genes, because we discarded the 2 genes without entrez ID.
+
+```{r GO}
+# Un anàlisis amb Gene Ontology (GO) ens pot indicar quines funcions tenen els gens diferencialment expresats. Per a fer-ho, primer hem de triar un dataset, que anomenarem "Univers"
+
+universe <- mappedkeys(org.Hs.egGO)
+count.mappedkeys(org.Hs.egGO)
+```
+
+```{r testGO}
+# Indiquem els gens que ens interessen, mitjançant els ids d'entrez que hem aconseguit abans. Agafem les funcions que tenen una significància elevada, amb el p-valor al 0.05.
+
+GOtest <- new("GOHyperGParams",
+                 geneIds = Entrez_ids,
+                 universeGeneIds=universe,
+                 annotation = "org.Hs.eg.db",
+                 ontology = "BP",
+                 pvalueCutoff= 0.05,
+                 conditional = FALSE,
+                 testDirection = "over") 
+
+GOtestOver <- hyperGTest(GOtest)
+GOtestOver
+
+GOresult <- summary(GOtestOver)
+head(GOresult)
+
+```
+
+```{r}
+# Representem de manera gr?fica els resultats obtinguts de l'an?lisi d'enriquiment
+GO_plot <- ggplot(data=GOresult, mapping=aes(x=Term,y=Count))+
+  geom_col(fill = "snow4")+
+  labs(title="Gene Ontology",x="Term",y="Number of genes")+
+  theme_light()+
+  theme(axis.text.x = element_text(angle = 90), axis.title.y = element_text(size = 10), axis.title.x = element_text(size = 10))
+
+GO_plot
+ggsave(filename = "GO_plot.png", plot= GO_plot, width = 8, height = 6)
+```
