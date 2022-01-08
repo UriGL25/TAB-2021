@@ -1,0 +1,112 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 4, fig.align = "center")
+library(ggplot2)
+```
+
+Group 1: Titanic
+```{r}
+
+#Look at the data
+head(Titanic)
+
+# Create the data frame
+Titanic_df <- as.data.frame(Titanic) #Transform dataset table to dataframe
+Titanic_df
+
+ggplot(data=Titanic_df, mapping=aes(x=Age,y=Freq,fill=Survived))+
+  geom_col()+
+  scale_fill_manual(values=c("#79AEB2","#4A6274"))+
+  facet_grid(cols=vars(Sex),rows=vars(Class))+
+  labs(x="Age",y="Passenger Count",
+       title="Survival Rate on the Titanic",
+       caption="Source: Titanic")+
+  theme_light()
+```
+
+Group 2: ToothGrowth
+```{r}
+head(ToothGrowth)
+class(ToothGrowth$supp)
+
+ggplot(data=ToothGrowth, mapping=aes(x=supp, y=len,fill=supp))+
+  geom_boxplot()+
+  facet_grid(cols=vars(dose))+
+  scale_fill_manual(values=c("#58A6A6","#EFA355"))+
+  theme_light()+
+  labs(x="Supplement type", y="Tooth length", title = "Tooth length vs. Supplement type", fill="Supplement type", caption="Source: ToothGrowth")
+```
+
+Group 3: msleep
+
+```{r}
+head(msleep)
+class(msleep) #df
+
+ggplot(data=msleep, mapping=aes(x=vore,y=sleep_total,fill=conservation))+
+  geom_col()+
+  theme_light()+
+  labs(x="",y="Sleep time in hours",fill="Conservation type", title="Animal sleep times", caption="Source:msleep")+
+  scale_fill_viridis_d(na.value = "grey80")
+```
+
+Group 4: mpg
+
+```{r}
+head(mpg)
+class(mpg) #df
+class(mpg$year) #integer -> transformate into factor
+mpg$year_f <- as.factor(mpg$year)
+
+
+ ggplot(data=mpg, mapping=aes(x=year_f,y=cty, fill=year_f))+
+   geom_boxplot()+
+   facet_grid(cols=vars(drv))+
+   theme_light()+
+   labs(x="as.factor(year)",y="Miles/Gallon", title="Change in fuel economy", fill="Year of manufacture", caption="Source: mpg")+
+   scale_fill_manual(values=c("#4CC3CD","#FEE883"))
+```
+
+Group 5: midwest
+
+```{r}
+head(midwest)
+class(midwest) #df
+class(midwest$state)
+midwest$state_f <- as.factor(midwest$state)
+class(midwest$popdensity) #numeric -> factor
+midwest$popdensity_f<- as.factor(midwest$popdensity)
+
+ggplot(data=midwest, mapping=aes(x=area, y=poptotal))+
+  geom_point(aes(color=state_f,shape=popdensity_f))+
+  theme_light()
+```
+
+Group 6: diamonds
+
+```{r}
+head(diamonds)
+
+ggplot(data= diamonds, mapping= aes(x= price, y= carat, colour=clarity))+
+  geom_point()+
+  facet_grid(cols=vars(color))+
+  labs(x="Price", y="Carat", title="Diamond Price per Carat", fill="Clarity", caption="Source: diamonds")+
+  theme_light()
+```
+
+Group 8: infert
+```{r}
+head(infert)
+ggplot(data=infert, mapping=aes(x=education, y=stratum, fill=education))+
+  geom_boxplot()+
+  facet_grid(cols=vars(spontaneous))+
+  theme_light()+
+  labs(x="Education", y="Stratum number", title="Infertility after Spontaneous and Induced Abortion", caption="Source: infert", fill="Education")+
+  scale_fill_manual(values=c("#900C3F","#C70039", "#FF5733"))
+```
+
