@@ -4,7 +4,7 @@ Hello! We are group 7 formed by the following members: Gisela de Miguel Garcia (
 
 The folders are arranged as follows: 
 - **INDIVIDUAL WORK:** Inside this folder there is a folder for each member of the group, where each one has uploaded the introduction, discussion and summary of one of the lectures. Some have a folder for extra work. 
-- **P1. Data management and processing:** It contains the Jupyter Notebook of the practice and inside it there is also the integrative exercise.
+- **P1. Data management and processing:** It contains the Jupyter Notebook of the practice and a folder with the generated files on it.
 - **P2. Data exploration and visualization:**
 - **P3. Genome-wide association studies:** It contains a pdf file, which corresponds to the article on GWAS in Colorectal Cancer. Also in this folder there is an R file, which corresponds to the code. 
 - **P4. Transcriptomic analyses:**
