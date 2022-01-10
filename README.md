@@ -8,6 +8,6 @@ The folders are arranged as follows:
 - **P2. Data exploration and visualization:** It contains a Rmd with the code of the practice, an extra code (all the members have contributed) and an image of the plot we had to recreate.
 - **P3. Genome-wide association studies:** It contains a pdf file, which corresponds to the article of GWAS in Colorectal Cancer. Also in this folder there is an R file, which corresponds to the code. 
 - **P4. Transcriptomic analyses:** It contains a pdf file, which corresponds to the article of transcriptomic analyses in Stomach Cancer. Also in this folder there is an R file, which corresponds to the code.
-
+- **Seminar - Group 7:** It contains the powerpoint of our seminar presentation. 
 
 ***
