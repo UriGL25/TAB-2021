@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 4, fig.align = "center")
+library(ggplot2)
+```
+
+Upload excel data
+
+```{r}
+exceldata_wt_pif = read_excel("longituds_wt_pif7.xlsx")
+df_wt_pif = data.frame(exceldata_wt_pif)
+df_wt_pif
+```
+
+
+
+Chart analysis
+```{r}
+df_wt_pif$Mutant_f <- as.factor(df_wt_pif$Mutant)
+df_wt_pif$Llum_f <- as.factor(df_wt_pif$Llum)
+
+grafic1 <- ggplot(data=df_wt_pif, mapping=aes(y=Length, x=Mutant_f, fill=Mutant_f))+
+  geom_boxplot()+
+  facet_grid(cols=vars(Llum_f))+
+  theme_light()+
+  labs(y="Longitud hipocòtil (mm)", title=expression(paste("Longitud de l'hipocòtil del mutant ", italic("pif7-1"), "comparat amb Col-0 (wt), en llum blanca (W) i ombra (W+FR)")), fill="", x="")+
+  stat_summary(fun=mean, geom="point", shape=20, size=2, color="brown3", fill="black", alpha=0.8)+
+  scale_fill_manual(values = c("darkorange1", "steelblue2"))+
+  theme(plot.title = element_text(size=8),axis.title.y = element_text(size = 8))
+grafic1
+ggsave(filename = "grafic1.png", plot= grafic1, width = 6, height = 4) # In inches by default
+```
+
+```{r}
+exceldata_wt_hfr = read_excel("longituds_wt-hfr.xlsx")
+df_wt_hfr = data.frame(exceldata_wt_hfr)
+df_wt_hfr
+```
+
+```{r}
+df_wt_hfr$Mutant_f <- as.factor(df_wt_hfr$Mutant)
+df_wt_hfr$Llum_f <- as.factor(df_wt_hfr$Llum)
+
+
+grafic2 <- ggplot(data=df_wt_hfr, mapping=aes(y=Length, x=Mutant_f, fill=Mutant_f))+
+  geom_boxplot()+
+  facet_grid(cols=vars(Llum_f))+
+  theme_light()+
+  labs(y="Longitud hipocòtil (mm)", title=expression(paste("Longitud de l'hipocòtil del mutant ", italic("hfr1-5"), "comparat amb Col-0 (wt), en llum blanca (W) i ombra (W+FR)")), fill="", x="")+
+  stat_summary(fun=mean, geom="point", shape=20, size=2, color="brown3", fill="black", alpha=0.8)+
+  scale_fill_manual(values = c("yellowgreen", "steelblue2"))+
+  theme(plot.title = element_text(size=8),axis.title.y = element_text(size = 8))
+
+grafic2
+ggsave(filename = "grafic2.png", plot= grafic2, width = 6, height = 4) # In inches by default
+
+
+```
+
+
+
+
+
+
+```{r}
+dfdata$Mutant_f <- as.factor(dfdata$Mutant)
+dfdata$Llum_f <- as.factor(dfdata$Llum)
+
+ggplot(data=dfdata, mapping=aes(y=Length, fill=Mutant_f))+
+  geom_boxplot()+
+  facet_grid(cols=vars(Llum_f))+
+  theme_light()+
+  theme(axis.text.x = element_blank())+
+  labs(y="Longitud hipocòtil (mm)", title="Longitud de l'hipocòtil del mutant hfr1-5 i del mutant pif7-1 comparat amb wt, en llum blanca (W) i ombra (W+FR)", fill="Mutants")+
+  scale_fill_hue()
+```
+
